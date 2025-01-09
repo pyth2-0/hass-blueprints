@@ -1,0 +1,93 @@
+blueprint:
+  name: Dynamic Valve Position Control
+  description: Control the TRV valve position dynamically or statically based on temperature.
+  domain: automation
+  input:
+    current_temperature:
+      name: Current Temperature Sensor
+      description: The sensor providing the current temperature.
+      selector:
+        entity:
+          domain: sensor
+    target_temperature:
+      name: Target Temperature Entity
+      description: The target temperature entity of the climate control.
+      selector:
+        entity:
+          domain: climate
+    kp_value:
+      name: Proportional Gain (Kp) Slider
+      description: Adjust the proportional gain to control valve responsiveness. Range: 1-100.
+      selector:
+        number:
+          min: 1
+          max: 100
+          step: 1
+    valve_step_size:
+      name: Valve Step Size (%) Slider
+      description: The percentage by which the valve position should be adjusted for static control.
+      selector:
+        number:
+          min: 1
+          max: 100
+          step: 1
+    dynamic_valve_control:
+      name: Enable Dynamic Valve Control
+      description: Enable or disable dynamic valve control.
+      selector:
+        boolean: {}
+    valve_position:
+      name: Valve Position Number
+      description: The number representing the current valve position.
+      selector:
+        entity:
+          domain: number
+
+trigger:
+  - platform: state
+    entity_id: !input current_temperature
+  - platform: state
+    entity_id: !input.target_temperature
+  - platform: state
+    entity_id: !input.kp_value
+  - platform: state
+    entity_id: !input.valve_step_size
+  - platform: state
+    entity_id: !input.dynamic_valve_control
+
+condition: []
+
+action:
+  - variables:
+      current_temp: "{{ states[!input.current_temperature].state | float }}"
+      target_temp: "{{ state_attr(!input.target_temperature, 'temperature') | float }}"
+      current_valve_position: "{{ states[!input.valve_position].state | float }}"
+  - choose:
+      - conditions:
+          - condition: state
+            entity_id: !input.dynamic_valve_control
+            state: "on"
+        sequence:
+          - variables:
+              calculated_position: "{{ ((target_temp - current_temp) * !input.kp_value) | int }}"
+          - service: input_number.set_value
+            data:
+              entity_id: !input.valve_position
+              value: "{{ [calculated_position, 100] | min | max(0) }}"
+      - conditions:
+          - condition: state
+            entity_id: !input.dynamic_valve_control
+            state: "off"
+        sequence:
+          - variables:
+              step_size: "{{ !input.valve_step_size }}"
+              calculated_position: >
+                {% if current_temp < target_temp %}
+                  {{ current_valve_position + step_size }}
+                {% else %}
+                  {{ current_valve_position - step_size }}
+                {% endif %}
+          - service: input_number.set_value
+            data:
+              entity_id: !input.valve_position
+              value: "{{ [calculated_position, 100] | min | max(0) }}"
