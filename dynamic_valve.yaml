@@ -17,7 +17,7 @@ blueprint:
           domain: climate
     kp_value:
       name: Proportional Gain (Kp) Slider
-      description: Adjust the proportional gain to control valve responsiveness. Range: 1-100.
+      description: Adjust the proportional gain to control valve responsiveness. 1-100.
       selector:
         number:
           min: 1
